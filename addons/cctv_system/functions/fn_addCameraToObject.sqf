@@ -53,6 +53,24 @@ if (count _units > 0) then {
   };
 };
 
+// Filter out invalid objects (units / characters) for camera placement
+if (count _objects > 0) then {
+  private _filtered = [];
+  {
+    if (_x isKindOf "CAManBase") then {
+      systemChat format ["CCTV: '%1' is a unit - cameras cannot be attached to players/AI.", name _x];
+    } else {
+      _filtered pushBack _x;
+    };
+  } forEach _objects;
+  _objects = _filtered;
+};
+
+if (_objects isEqualTo []) exitWith {
+  systemChat "CCTV: No valid objects to attach camera (units are not allowed).";
+  deleteVehicle _logic;
+};
+
 // If we found objects and this looks like a Zeus placement, show dialog
 private _isZeusPlacement = (count _objects > 0) && (count synchronizedObjects _logic == 0);
 if (_isZeusPlacement) then {
@@ -89,19 +107,13 @@ systemChat format ["CCTV: Side=%1, Label='%2'", _sideStr, _labelRaw];
     
     private _objName = getText (configFile >> "CfgVehicles" >> typeOf _x >> "displayName");
     private _displayLabel = if (_labelRaw isEqualTo "") then {"(auto-named)"} else {format ["'%1'", _labelRaw]};
-    systemChat format ["CCTV: Camera %1 added to %2 (%3)", _displayLabel, _objName, typeOf _x];
+    systemChat format ["CCTV: Camera %1 added to %2. Will appear when you exit Zeus.", _displayLabel, _objName];
     diag_log format ["CCTV: Camera %1 added to %2 (%3)", _displayLabel, _objName, typeOf _x];
   };
 } forEach _objects;
 
-// Trigger rebuild on all clients
-systemChat "CCTV: Triggering rebuild...";
-[] spawn {
-  uiSleep 0.1;
-  ["CCTV_Rebuild", []] call CBA_fnc_globalEvent;
-  uiSleep 0.5;
-  systemChat "CCTV: Rebuild event sent - cameras should now be active";
-};
+// Mark that cameras changed - Zeus exit will trigger rebuild
+missionNamespace setVariable ["CCTV_forceRebuild", true, true];
 
 // Delete the module after execution
 deleteVehicle _logic;

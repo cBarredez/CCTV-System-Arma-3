@@ -38,6 +38,12 @@ missionNamespace setVariable ["CCTV_helmetCamDefaultSide", "ANY", true];
 // Auto-toggle ON by default (each client can toggle from ACE Self)
 missionNamespace setVariable ["CCTV_autoToggleDefault", true];
 
+// AI helmet camera support (disabled by default)
+// Can be enabled via CBA settings: CCTV > Allow AI Helmet Cameras
+if (isNil "CCTV_allowAIHelmetCameras") then {
+  CCTV_allowAIHelmetCameras = false; // Default: disabled
+};
+
 // Optional cTab integration (soft-check only; no hard dependency)
 systemChat "CCTV: Checking for cTab...";
 if (isClass (configFile >> "CfgWeapons" >> "ItemcTabHCam")) then {

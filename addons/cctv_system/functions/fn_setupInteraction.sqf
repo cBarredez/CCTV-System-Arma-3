@@ -221,8 +221,20 @@ if (_installHooks) then {
   private _screens = _screensAll select { [_x getVariable ["CCTV_side","ANY"]] call _fnc_sideMatches };
   private _cams    = _camsAll    select { [_x getVariable ["CCTV_side","ANY"]] call _fnc_sideMatches };
 
+  // Proximity filter: only process screens within 100m of player (performance optimization)
+  private _nearScreens = _screens select { player distance _x < 100 };
+  systemChat format ["CCTV: Processing %1 nearby screens (out of %2 total)", count _nearScreens, count _screens];
 
-  // ===== CLEANUP: Remove ALL old ACE actions from ALL screens =====
+  // Store current state for future comparison
+  private _curCamIds    = _cams apply { _x call BIS_fnc_netId };
+  private _curScreenIds = _screens apply { _x call BIS_fnc_netId };
+  
+  missionNamespace setVariable ["CCTV_lastCamIds", _curCamIds];
+  missionNamespace setVariable ["CCTV_lastScreenIds", _curScreenIds];
+  missionNamespace setVariable ["CCTV_forceRebuild", false];
+
+
+  // ===== CLEANUP: Remove old ACE actions from ALL screens (not just nearby) =====
   {
     [_x] call _fnc_removeActions;
     // Force ACE to clear its cache for this object
@@ -230,7 +242,7 @@ if (_installHooks) then {
     _x setVariable ["ace_interact_menu_actionParams", nil];
   } forEach _screensAll;
 
-  // ===== Add ACE action: Sync TVs (local refresh) =====
+  // ===== Add ACE action: Sync TVs (local refresh) - nearby screens only =====
   {
     private _screen = _x;
     [_screen, 0, ["ACE_MainActions"], [
@@ -249,7 +261,7 @@ if (_installHooks) then {
       [false, false, false, false, false], // 10: showDisabled
       {}              // 11: custom data
     ]] call ace_interact_menu_fnc_addActionToObject;
-  } forEach _screens;
+  } forEach _nearScreens;
 
   // ===== CLEANUP: Destroy ONLY fixed cameras, preserve helmet cams =====
   private _reg = missionNamespace getVariable ["CCTV_camRegistry", createHashMap];
@@ -318,24 +330,26 @@ if (_installHooks) then {
     private _offset = [0,0,0];
     private _isVehicle = (_src isKindOf "AllVehicles" && !(_src isKindOf "CAManBase"));
     if (_isVehicle) then {
-      // Get bounding box and position camera at front edge
+      // Get bounding box and position camera at front edge with slight height
       private _bbox = boundingBoxReal _src;
       private _frontY = (_bbox select 1) select 1; // Front Y coordinate
-      _offset = [0, _frontY, 0];
+      _offset = [0, _frontY, 0.5]; // Add 0.5m height
     };
     
     _cam attachTo [_src, _offset];
     
-    // Vehicles need 90-degree rotation, static objects need 180-degree flip (front is back)
-    private _dir = vectorDirVisual _src;
+    // Set direction AFTER attachment - direction is relative to parent vehicle
+    // For vehicles: look straight ahead (no rotation needed, attachTo handles it)
+    // For static objects: flip 180 degrees (front is back)
     if (_isVehicle) then {
-      // Rotate 90 degrees left for vehicles
-      _dir = [-(_dir select 1), (_dir select 0), (_dir select 2)];
+      // Direction relative to vehicle: straight forward = [0,1,0] in model space
+      _cam setVectorDirAndUp [[0,1,0], [0,0,1]];
     } else {
-      // Flip 180 degrees for static objects (front is back)
+      // Static objects: use world direction but flip 180
+      private _dir = vectorDirVisual _src;
       _dir = [-(_dir select 0), -(_dir select 1), (_dir select 2)];
+      _cam setVectorDirAndUp [_dir, vectorUpVisual _src];
     };
-    _cam setVectorDirAndUp [_dir, vectorUpVisual _src];
     _cam camSetFov _FOV; _cam camCommit 0;
     _cam cameraEffect ["Internal","BACK", _rtName];
 
@@ -363,7 +377,7 @@ if (_installHooks) then {
 
   missionNamespace setVariable ["CCTV_camRegistry", _reg];
 
-  // ===== Build ACE menu per screen =====
+  // ===== Build ACE menu per nearby screen =====
   {
     private _pc = _x;
 
@@ -429,11 +443,9 @@ if (_installHooks) then {
           [_pc, ["ACE_MainActions", _rootId, _scrId], _actCam] call _fnc_addAndStore;
         } forEach _camsInfo;
       };
-    } forEach _selIdxs;
+      } forEach _selIdxs;
 
-  } forEach _screens;
-
-  // ===== [HCAM] ACE Self: simple toggle for local helmet cam =====
+  } forEach _nearScreens;  // ===== [HCAM] ACE Self: simple toggle for local helmet cam =====
   private _showSelf = {
     ([player] call CCTV_fnc_isHelmetCamUser) || { player getVariable ["CCTV_helmetCamOn", false] }
   };
@@ -518,24 +530,24 @@ if (_installHooks) then {
                   private _offset = [0,0,0];
                   private _isVehicle = (_src isKindOf "AllVehicles" && !(_src isKindOf "CAManBase"));
                   if (_isVehicle) then {
-                    // Get bounding box and position camera at front edge
+                    // Get bounding box and position camera at front edge with slight height
                     private _bbox = boundingBoxReal _src;
                     private _frontY = (_bbox select 1) select 1; // Front Y coordinate
-                    _offset = [0, _frontY, 0];
+                    _offset = [0, _frontY, 0.5]; // Add 0.5m height
                   };
                   
                   _camNew attachTo [_src, _offset];
                   
-                  // Vehicles need 90-degree rotation, static objects need 180-degree flip (front is back)
-                  private _dir = vectorDirVisual _src;
+                  // Set direction using relative coordinates for vehicles, world for static
                   if (_isVehicle) then {
-                    // Rotate 90 degrees left for vehicles
-                    _dir = [-(_dir select 1), (_dir select 0), (_dir select 2)];
+                    // Direction relative to vehicle: straight forward in model space
+                    _camNew setVectorDirAndUp [[0,1,0], [0,0,1]];
                   } else {
-                    // Flip 180 degrees for static objects (front is back)
+                    // Static objects: use world direction but flip 180
+                    private _dir = vectorDirVisual _src;
                     _dir = [-(_dir select 0), -(_dir select 1), (_dir select 2)];
+                    _camNew setVectorDirAndUp [_dir, vectorUpVisual _src];
                   };
-                  _camNew setVectorDirAndUp [_dir, vectorUpVisual _src];
                   _camNew camSetFov 0.85; _camNew camCommit 0;
                   _camNew cameraEffect ["Internal","BACK", _rtName];
                   _reg set [_id, [_rtName, _camNew, (_entry select 2)]];
@@ -550,17 +562,16 @@ if (_installHooks) then {
                 private _src = objectFromNetId _id;
                 if (!isNull _src && !isNull _cam) then {
                   private _isVehicle = (_src isKindOf "AllVehicles" && !(_src isKindOf "CAManBase"));
-                  private _dir = vectorDirVisual _src;
                   
                   if (_isVehicle) then {
-                    // Rotate 90 degrees left for vehicles
-                    _dir = [-(_dir select 1), (_dir select 0), (_dir select 2)];
+                    // For vehicles: use relative direction (straight forward in model space)
+                    _cam setVectorDirAndUp [[0,1,0], [0,0,1]];
                   } else {
-                    // Flip 180 degrees for static objects (front is back)
+                    // For static objects: use world direction with 180 flip
+                    private _dir = vectorDirVisual _src;
                     _dir = [-(_dir select 0), -(_dir select 1), (_dir select 2)];
+                    _cam setVectorDirAndUp [_dir, vectorUpVisual _src];
                   };
-                  
-                  _cam setVectorDirAndUp [_dir, vectorUpVisual _src];
                 };
               };
             };

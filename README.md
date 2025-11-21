@@ -77,8 +77,17 @@ Discord: helashi
 - Helmet camera implementation based on cTab by Riouken
 - Compatible with ACE3 and CBA frameworks
 
----
-
 ## 🚧 Planned Features
 
 - Support for streaming turret cameras from drones, planes, and other vehicles directly to CCTV screens (future update)
+
+---
+
+## 🔧 Future Improvements & Considerations
+
+**System Architecture (Deferred):**
+1. Long-term: Replace rebuild system with event-driven incremental updates (planned, waiting)
+
+**Pending Enhancements:**
+- Further refine proximity system with dynamic radius adjustment
+- Turret camera streaming for drones/planes/vehicles

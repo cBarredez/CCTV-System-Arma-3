@@ -41,12 +41,7 @@ if (isNull (getAssignedCuratorLogic player)) exitWith {
   
   private _side = _logic getVariable ["cctv_side", "ANY"];
   
-  if (_label != "") then {
-    systemChat format ["CCTV: Camera created as '%1' (%2)", _label, _side];
-  } else {
-    systemChat format ["CCTV: Camera created as '%1' (%2)", _label, _side];
-  };
-  hint format ["CCTV Camera Added\n\nLabel: %1\nSide: %2\n\nYou can see it in CCTV screens.", _label, _side];
+  systemChat format ["CCTV: Camera created as '%1' (%2)", _label, _side];
 };
 
 true

@@ -18,7 +18,13 @@ class CfgPatches {
 
 class Extended_PostInit_EventHandlers {
   class cctv_system {
-    init = "call compile preprocessFileLineNumbers '\cctv_system\XEH_postInit.sqf'";
+    init = "call compile preprocessFileLineNumbers 'cctv_system\XEH_postInit.sqf'";
+  };
+};
+
+class Extended_PreInit_EventHandlers {
+  class cctv_system {
+    init = "call compile preprocessFileLineNumbers 'cctv_system\XEH_preInit.sqf'";
   };
 };
 

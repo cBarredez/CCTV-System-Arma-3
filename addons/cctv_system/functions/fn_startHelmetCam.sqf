@@ -6,8 +6,15 @@ if (!local _unit) exitWith {};
 
 if (_unit getVariable ["CCTV_helmetCamOn", false]) exitWith {};
 
+// Check if AI helmet cameras are allowed
+if (!isPlayer _unit && !(missionNamespace getVariable ["CCTV_allowAIHelmetCameras", false])) exitWith {
+  // AI helmet cameras disabled via settings
+  false
+};
+
 // Create camera and target object (cTab-compatible approach)
-private _rtName = format ["CCTV_RT_HCAM_%1", getPlayerUID _unit];
+// Use netId for RT name (works for both players and AI)
+private _rtName = format ["CCTV_RT_HCAM_%1", netId _unit];
 
 // Create target sphere (hidden)
 private _target = "Sign_Sphere10cm_F" createVehicleLocal position _unit;
